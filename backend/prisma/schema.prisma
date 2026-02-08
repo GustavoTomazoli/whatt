@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum LiveStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+enum AuctionStatus {
+  DRAFT
+  RUNNING
+  ENDED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  WALLET
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  passwordHash  String
+  name          String
+  role          UserRole
+  createdAt     DateTime    @default(now())
+  sellerProfile SellerProfile?
+  bids          Bid[]
+  orders        Order[]     @relation("buyerOrders")
+  sales         Order[]     @relation("sellerSales")
+}
+
+model SellerProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  bio            String?
+  followersCount Int      @default(0)
+  rating         Float    @default(0)
+  isApproved     Boolean  @default(false)
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+model Live {
+  id           String     @id @default(cuid())
+  sellerId     String
+  title        String
+  thumbnailUrl String?
+  startsAt     DateTime
+  status       LiveStatus @default(SCHEDULED)
+  createdAt    DateTime   @default(now())
+  seller       User       @relation(fields: [sellerId], references: [id])
+  auctions     Auction[]
+}
+
+model Auction {
+  id             String        @id @default(cuid())
+  liveId         String
+  productTitle   String
+  productImage   String?
+  startPriceCents Int
+  buyNowPriceCents Int?
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AuctionStatus @default(DRAFT)
+  highestBidCents Int          @default(0)
+  highestBidderId String?
+  live           Live          @relation(fields: [liveId], references: [id])
+  bids           Bid[]
+  orders         Order[]
+}
+
+model Bid {
+  id           String   @id @default(cuid())
+  auctionId    String
+  userId       String
+  amountCents  Int
+  createdAt    DateTime @default(now())
+  auction      Auction  @relation(fields: [auctionId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  auctionId      String
+  buyerId        String
+  sellerId       String
+  amountCents    Int
+  platformFeeCents Int
+  sellerNetCents Int
+  status         OrderStatus @default(PENDING_PAYMENT)
+  shippingAddress Json?
+  createdAt      DateTime    @default(now())
+  auction        Auction     @relation(fields: [auctionId], references: [id])
+  buyer          User        @relation("buyerOrders", fields: [buyerId], references: [id])
+  seller         User        @relation("sellerSales", fields: [sellerId], references: [id])
+  payments       Payment[]
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  orderId     String
+  method      PaymentMethod
+  externalRef String?
+  status      String
+  createdAt   DateTime      @default(now())
+  order       Order         @relation(fields: [orderId], references: [id])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  liveId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+}
